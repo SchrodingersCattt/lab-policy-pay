@@ -4,6 +4,7 @@ let parsedPolicy = null;
 let selected = null;
 let gridApi = null;
 let currentExpenses = [];
+const query = new URLSearchParams(window.location.search);
 
 function flash(message, error = false) { notice.textContent = message; notice.hidden = false; notice.classList.toggle('error', error); }
 async function api(url, options = {}) {
@@ -65,7 +66,8 @@ async function refreshDashboard() {
   $('#expense-grid').hidden = !data.expenses.length || !gridApi;
   $('#fallback-table').hidden = !data.expenses.length || !!gridApi;
   if (gridApi) gridApi.setGridOption('rowData', data.expenses); else fallbackRows(data.expenses);
-  if (selected) { const next = data.expenses.find(x=>x.id === selected.id); if(next) selectExpense(next); }
+  const wanted = selected?.id || query.get('select');
+  if (wanted) { const next = data.expenses.find(x=>x.id === wanted); if(next) selectExpense(next); }
 }
 
 $('#parse-policy').addEventListener('click', async () => {
@@ -109,7 +111,7 @@ $('#cancel').addEventListener('click', async ()=>{ if(!selected)return; try{ sel
 
 initGrid();
 refreshDashboard().catch(error=>flash(error.message,true));
-const payment = new URLSearchParams(window.location.search).get('payment');
+const payment = query.get('payment');
 if(payment==='complete') flash('PayPal sandbox capture verified and recorded.');
 if(payment==='cancelled') flash('Checkout cancelled. The request remains approved.');
 if(payment==='failed') flash('The sandbox payment could not be verified.',true);
