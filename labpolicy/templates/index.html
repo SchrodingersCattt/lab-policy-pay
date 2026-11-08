@@ -41,9 +41,15 @@
 
         <section class="card request-card" id="requests"><div class="card-heading"><div><span class="index">02</span><h2>New request</h2></div><span class="tag">HUMAN IN CONTROL</span></div><p class="card-intro">Create a request to see how the confirmed policy applies before any money moves.</p>
           <form id="expense-form"><label class="label" for="kind">PAYMENT FLOW</label><select id="kind" required><option value="purchase">Purchase from sample supplier</option><option value="reimbursement">Employee reimbursement</option></select>
+            <details class="receipt-box" id="receipt-box"><summary>Extract from a receipt <span>OPTIONAL · AI ASSISTED</span></summary>
+              <label class="label" for="receipt-text">PASTE RECEIPT TEXT <span>SYNTHETIC DATA ONLY</span></label>
+              <textarea id="receipt-text" rows="3" placeholder="Paste receipt text here"></textarea>
+              <button id="parse-receipt" class="secondary" type="button"><span>Extract receipt with AI</span><span>✳</span></button>
+              <p id="receipt-evidence" class="inline-note">Review the amount and description against the original receipt before submitting.</p>
+            </details>
             <div class="field-row"><div><label class="label" for="project">PROJECT</label><input id="project" placeholder="e.g. Crystal discovery" maxlength="80" required></div><div><label class="label" for="amount">AMOUNT <span>USD</span></label><input id="amount" type="number" min="0.01" step="0.01" placeholder="45.00" required></div></div>
             <label class="label" for="description">WHAT IS THIS FOR?</label><input id="description" placeholder="e.g. Materials data service" maxlength="300" required>
-            <div id="recipient-wrap" hidden><label class="label" for="recipient">SANDBOX EMPLOYEE EMAIL</label><input id="recipient" type="email" placeholder="Sandbox account email"><p class="inline-note">Use a PayPal sandbox personal account, not a real recipient.</p></div>
+            <div id="recipient-wrap" hidden><label class="checkbox-line"><input id="use-configured-recipient" type="checkbox"> Use the configured sandbox employee</label><label class="label" for="recipient">SANDBOX EMPLOYEE EMAIL</label><input id="recipient" type="email" placeholder="Sandbox account email"><p class="inline-note">Use a PayPal sandbox personal account, not a real recipient.</p></div>
             <button class="primary" type="submit"><span>Check against policy</span><span>↗</span></button>
           </form>
           <div class="info-box"><span>↳</span><p><strong>Two real sandbox flows.</strong> Purchases use a simulated supplier checkout. Reimbursements use Payouts when enabled on your sandbox app.</p></div>
@@ -51,8 +57,9 @@
       </div>
 
       <section class="card activity-card" id="activity"><div class="card-heading"><div><span class="index">03</span><h2>Request activity</h2></div><span class="tag" id="grid-label">REQUEST LEDGER</span></div><p class="card-intro">Select a request to inspect its policy decision, approve it, or check the payment status.</p>
+        <div id="grid-tools" class="grid-tools" hidden><label for="grid-search">Search requests</label><input id="grid-search" placeholder="Filter by project, request or status"><button id="grid-export" type="button">Export CSV</button></div>
         <div id="expense-grid" class="expense-grid"></div><div id="fallback-table" hidden></div><div class="empty-ledger" id="empty-ledger">No requests yet. Confirm a policy to begin.</div>
-        <div id="selected" class="selected" hidden><div class="selected-top"><div><span class="label">SELECTED REQUEST</span><h3 id="selected-title"></h3></div><span class="state" id="selected-state"></span></div><p id="selected-decision"></p><div class="selected-actions"><button id="approve" type="button" hidden>Confirm approval</button><button id="pay" type="button" hidden>Continue to sandbox payment</button><button id="refresh" type="button" hidden>Refresh payout status</button><button id="cancel" type="button" hidden>Cancel request</button></div></div>
+        <div id="selected" class="selected" hidden><div class="selected-top"><div><span class="label">SELECTED REQUEST</span><h3 id="selected-title"></h3></div><span class="state" id="selected-state"></span></div><p id="selected-decision"></p><p id="selected-source" class="source-summary" hidden></p><div class="selected-actions"><button id="approve" type="button" hidden>Confirm approval</button><button id="pay" type="button" hidden>Continue to sandbox payment</button><button id="refresh" type="button" hidden>Refresh payout status</button><button id="cancel" type="button" hidden>Cancel request</button></div></div>
       </section>
       <footer><span>LEDGER LAB <b>·</b> HUMAN JUDGMENT, CLEARER CONTEXT</span><span>PAYPAL SANDBOX / AI / AG GRID COMMUNITY</span></footer>
     </div>

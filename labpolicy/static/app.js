@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const notice = $('#notice');
 let parsedPolicy = null;
+let parsedReceipt = null;
 let selected = null;
 let gridApi = null;
 let currentExpenses = [];
@@ -30,6 +31,7 @@ function initGrid() {
     suppressCellFocus:true
   });
   $('#grid-label').textContent = 'AG GRID COMMUNITY';
+  $('#grid-tools').hidden = false;
 }
 
 function fallbackRows(rows) {
@@ -46,9 +48,17 @@ function selectExpense(row) {
   $('#selected-title').textContent = `${row.project} · $${row.amount}`;
   $('#selected-state').textContent = row.status.replaceAll('_',' ').toUpperCase();
   $('#selected-decision').textContent = row.decision;
+  const quotes = row.source_evidence || {};
+  const source = [];
+  if (row.recipient_label) source.push(`Sandbox recipient: ${row.recipient_label}`);
+  if (row.source_text) source.push(`Receipt: ${row.source_text}`);
+  if (quotes.amount) source.push(`Amount source: “${quotes.amount}”`);
+  if (quotes.description) source.push(`Description source: “${quotes.description}”`);
+  $('#selected-source').textContent = source.join(' · ');
+  $('#selected-source').hidden = !source.length;
   $('#approve').hidden = row.status !== 'review';
-  $('#pay').hidden = row.status !== 'approved';
-  $('#pay').textContent = row.kind === 'purchase' ? 'Continue to sandbox checkout' : 'Send sandbox reimbursement';
+  $('#pay').hidden = !['approved','payout_submitting'].includes(row.status);
+  $('#pay').textContent = row.status === 'payout_submitting' ? 'Retry same sandbox payout' : row.kind === 'purchase' ? 'Continue to sandbox checkout' : 'Send sandbox reimbursement';
   $('#refresh').hidden = !['payout_pending','unclaimed'].includes(row.status);
   $('#cancel').hidden = !['review','approved'].includes(row.status);
 }
@@ -92,24 +102,52 @@ $('#confirm-policy').addEventListener('click', async () => {
     $('#policy-review').hidden = true; await refreshDashboard(); flash('Policy activated after human confirmation.');
   } catch(error) { flash(error.message, true); }
 });
+$('#policy-text').addEventListener('input', ()=>{ parsedPolicy=null; $('#policy-review').hidden=true; });
+for (const key of ['budget','approval_threshold','max_single']) {
+  $(`#${key}`).addEventListener('input', ()=>{
+    if (!parsedPolicy) return;
+    const same = parsedPolicy[key] && Number($(`#${key}`).value) === Number(parsedPolicy[key]);
+    $(`#${key}-evidence`).textContent = same && parsedPolicy.evidence[key] ? `Source: “${parsedPolicy.evidence[key]}”` : 'Edited or unsupported amount — verify it against the notice.';
+  });
+}
 $('#edit-policy').addEventListener('click', ()=>{ if(parsedPolicy) $('#policy-review').hidden = false; else flash('Extract the notice to review a new policy.'); });
-$('#kind').addEventListener('change', ()=>{ const reimbursement=$('#kind').value==='reimbursement'; $('#recipient-wrap').hidden=!reimbursement; $('#recipient').required=reimbursement; });
+function updateRecipient() { const reimbursement=$('#kind').value==='reimbursement', configured=$('#use-configured-recipient').checked; $('#recipient-wrap').hidden=!reimbursement; $('#recipient').required=reimbursement && !configured; $('#recipient').disabled=configured; }
+$('#kind').addEventListener('change', updateRecipient);
+$('#use-configured-recipient').addEventListener('change', updateRecipient);
+$('#receipt-text').addEventListener('input', ()=>{ parsedReceipt=null; $('#receipt-evidence').textContent='Receipt changed — extract again or enter the fields manually.'; });
+$('#parse-receipt').addEventListener('click', async ()=>{
+  const button=$('#parse-receipt'); button.disabled=true; button.firstElementChild.textContent='Reading receipt…';
+  try {
+    parsedReceipt=await post('/api/expenses/parse',{source:$('#receipt-text').value});
+    if (parsedReceipt.amount) $('#amount').value=parsedReceipt.amount;
+    if (parsedReceipt.description) $('#description').value=parsedReceipt.description;
+    const evidence=parsedReceipt.evidence;
+    $('#receipt-evidence').textContent=[evidence.amount && `Amount: “${evidence.amount}”`, evidence.description && `Description: “${evidence.description}”`].filter(Boolean).join(' · ') || 'No supported fields found. Enter them manually.';
+    flash('Review the proposed receipt fields and their source before submitting.');
+  } catch(error) { flash(error.message,true); }
+  finally { button.disabled=false; button.firstElementChild.textContent='Extract receipt with AI'; }
+});
 $('#expense-form').addEventListener('submit', async event=>{
   event.preventDefault();
   try {
     const row = await post('/api/expenses', {kind:$('#kind').value, project:$('#project').value, amount:$('#amount').value,
-      description:$('#description').value, recipient:$('#recipient').value});
+      description:$('#description').value, recipient:$('#recipient').value, use_configured_recipient:$('#use-configured-recipient').checked,
+      source:$('#receipt-text').value, source_evidence:parsedReceipt?.evidence || {}});
     selected=row; await refreshDashboard(); selectExpense(row);
     flash(row.status==='blocked' ? row.decision : 'Request checked. Review the decision and confirm it as a person.', row.status==='blocked');
     $('#activity').scrollIntoView({behavior:'smooth',block:'start'});
   } catch(error) { flash(error.message, true); }
 });
 $('#approve').addEventListener('click', async ()=>{ if(!selected)return; try{ selected=await post(`/api/expenses/${selected.id}/approve`,{confirmed:true}); await refreshDashboard(); flash('Approved. The amount is reserved; payment has not yet been sent.'); }catch(error){flash(error.message,true);await refreshDashboard();} });
-$('#pay').addEventListener('click', async ()=>{ if(!selected)return; try{ const result=await post(`/api/expenses/${selected.id}/pay`); if(result.approval_url) window.location.assign(result.approval_url); else {await refreshDashboard();flash('Sandbox payout submitted. Refresh its item status to confirm delivery.');} }catch(error){flash(error.message,true);} });
+$('#pay').addEventListener('click', async ()=>{ if(!selected)return; try{ const result=await post(`/api/expenses/${selected.id}/pay`); if(result.approval_url) window.location.assign(result.approval_url); else {await refreshDashboard();flash('Sandbox payout submitted. Refresh its item status to confirm delivery.');} }catch(error){await refreshDashboard();flash(error.message,true);} });
 $('#refresh').addEventListener('click', async ()=>{ if(!selected)return; try{ selected=await post(`/api/expenses/${selected.id}/refresh`); await refreshDashboard(); flash('Payout status refreshed from PayPal Sandbox.'); }catch(error){flash(error.message,true);} });
 $('#cancel').addEventListener('click', async ()=>{ if(!selected)return; try{ selected=await post(`/api/expenses/${selected.id}/cancel`); await refreshDashboard(); flash('Request cancelled before payment.'); }catch(error){flash(error.message,true);} });
 
 initGrid();
+$('#grid-search').addEventListener('input',event=>gridApi?.setGridOption('quickFilterText',event.target.value));
+$('#grid-export').addEventListener('click',()=>gridApi?.exportDataAsCsv({fileName:'ledger-lab-requests.csv',processCellCallback:params=>{
+  const value=String(params.value ?? ''); return /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;
+}}));
 refreshDashboard().catch(error=>flash(error.message,true));
 const payment = query.get('payment');
 if(payment==='complete') flash('PayPal sandbox capture verified and recorded.');

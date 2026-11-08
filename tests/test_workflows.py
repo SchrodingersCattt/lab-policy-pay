@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 import requests
+import sqlite3
 from labpolicy import app as lab
-from labpolicy.integrations import IntegrationError, model_json
+from labpolicy.integrations import IntegrationError, PayPalSandbox, model_json
 
 
 @pytest.fixture
@@ -67,7 +68,8 @@ def test_reimbursement_waits_for_item_success(client, monkeypatch):
         def create_payout(self, reference, amount, receiver):
             return {"batch_id": "BATCH-1", "status": "PENDING"}
 
-        def payout_status(self, batch, reference):
+        def payout_status(self, batch, reference, **expected):
+            assert expected == {"expected_amount": "40.00", "expected_receiver": "sb-test@personal.example.com"}
             return next(states)
 
     monkeypatch.setattr(lab, "PayPalSandbox", Gateway)
@@ -86,8 +88,9 @@ def test_purchase_requires_matching_verified_capture(client, monkeypatch):
         def create_order(self, reference, amount, description):
             return {"id": "ORDER-1", "approval_url": "https://sandbox.example/approve"}
 
-        def capture_order(self, order_id, reference, amount):
+        def capture_order(self, order_id, reference, amount, *, may_capture=True):
             assert order_id == "ORDER-1" and reference == row["id"] and amount == "45.00"
+            assert may_capture
             return {"capture_id": "CAPTURE-1"}
 
     monkeypatch.setattr(lab, "PayPalSandbox", Gateway)
@@ -110,7 +113,100 @@ def test_payout_failure_does_not_create_a_fake_success(client, monkeypatch):
     monkeypatch.setattr(lab, "PayPalSandbox", Gateway)
     response = client.post(f"/api/expenses/{row['id']}/pay")
     assert response.status_code == 503
-    assert client.get("/api/dashboard").get_json()["expenses"][0]["status"] == "approved"
+    assert client.get("/api/dashboard").get_json()["expenses"][0]["status"] == "payout_submitting"
+    assert client.post(f"/api/expenses/{row['id']}/cancel").status_code == 400
+
+
+def test_receipt_extraction_and_edited_evidence(client, monkeypatch):
+    source = "Lab Store\nItem: pipette tips\nTotal: $45.00"
+    monkeypatch.setattr(lab, "model_json", lambda *_: {
+        "amount": "45", "description": "pipette tips",
+        "evidence": {"amount": "Total: $45.00", "description": "Item: pipette tips"},
+    })
+    extracted = client.post("/api/expenses/parse", json={"source": source}).get_json()
+    assert extracted["amount"] == "45.00" and extracted["description"] == "pipette tips"
+    confirm(client)
+    created = client.post("/api/expenses", json={"kind": "purchase", "project": "Lab", "description": "pipette tips",
+                           "amount": "47", "source": source, "source_evidence": extracted["evidence"]}).get_json()
+    assert created["source_evidence"]["amount"] is None
+    assert created["source_evidence"]["description"] == "Item: pipette tips"
+    assert created["source_text"] == source
+    monkeypatch.setattr(lab, "model_json", lambda *_: {"amount": "99", "description": "invented",
+        "evidence": {"amount": "Total: $45.00", "description": "invented"}})
+    unsupported = client.post("/api/expenses/parse", json={"source": source}).get_json()
+    assert unsupported["amount"] is None and unsupported["description"] is None
+
+
+def test_previous_month_request_cannot_spend_current_month_budget(client, tmp_path):
+    confirm(client, budget="100", maximum="100")
+    row = expense(client, "80")
+    client.post(f"/api/expenses/{row['id']}/approve", json={"confirmed": True})
+    with sqlite3.connect(tmp_path / "lab-policy.sqlite3") as conn:
+        conn.execute("UPDATE expenses SET created_at=datetime('now','start of month','-1 day') WHERE id=?", (row['id'],))
+    current = expense(client, "90")
+    assert client.post(f"/api/expenses/{current['id']}/approve", json={"confirmed": True}).status_code == 200
+    assert client.post(f"/api/expenses/{row['id']}/pay").status_code == 409
+    assert client.get("/api/dashboard").get_json()["committed"] == "90.00"
+
+
+def test_unknown_payout_can_only_retry_same_request(client, monkeypatch):
+    confirm(client)
+    row = expense(client, "40", "reimbursement")
+    client.post(f"/api/expenses/{row['id']}/approve", json={"confirmed": True})
+    calls = []
+    class Gateway:
+        def create_payout(self, *args):
+            calls.append(args)
+            if len(calls) == 1:
+                raise IntegrationError("Response lost")
+            return {"batch_id": "BATCH-1", "status": "PENDING"}
+    monkeypatch.setattr(lab, "PayPalSandbox", Gateway)
+    assert client.post(f"/api/expenses/{row['id']}/pay").status_code == 503
+    assert client.post(f"/api/expenses/{row['id']}/cancel").status_code == 400
+    assert client.get("/api/dashboard").get_json()["committed"] == "40.00"
+    assert client.post(f"/api/expenses/{row['id']}/pay").get_json()["status"] == "payout_pending"
+    assert calls[0] == calls[1]
+
+
+def test_completed_checkout_can_be_reconciled_after_policy_changes(client, monkeypatch):
+    confirm(client)
+    row = expense(client, "150")
+    client.post(f"/api/expenses/{row['id']}/approve", json={"confirmed": True})
+    class Gateway:
+        def create_order(self, *_):
+            return {"id": "ORDER-1", "approval_url": "https://sandbox.example/approve"}
+        def capture_order(self, order_id, reference, amount, *, may_capture=True):
+            assert not may_capture  # PayPal reports this order was already completed.
+            return {"capture_id": "CAPTURE-1"}
+    monkeypatch.setattr(lab, "PayPalSandbox", Gateway)
+    client.post(f"/api/expenses/{row['id']}/pay")
+    confirm(client, maximum="100")
+    assert "payment=complete" in client.get("/checkout/return?token=ORDER-1").location
+    assert client.get("/api/dashboard").get_json()["expenses"][0]["status"] == "paid"
+
+
+def test_gateway_refuses_new_capture_if_policy_changed(monkeypatch):
+    gateway = PayPalSandbox()
+    calls = []
+    def upstream(method, path, **_kwargs):
+        calls.append(method)
+        return {"status": "APPROVED", "purchase_units": [{"custom_id": "request",
+                "amount": {"currency_code": "USD", "value": "45.00"}}]}
+    monkeypatch.setattr(gateway, "_request", upstream)
+    with pytest.raises(IntegrationError, match="no longer permits capture"):
+        gateway.capture_order("ORDER-1", "request", "45.00", may_capture=False)
+    assert calls == ["GET"]
+
+
+def test_gateway_rejects_payout_with_mismatched_amount_or_receiver(monkeypatch):
+    gateway = PayPalSandbox()
+    monkeypatch.setattr(gateway, "_request", lambda *_args, **_kwargs: {"batch_header": {"batch_status": "SUCCESS"},
+        "items": [{"transaction_status": "SUCCESS", "payout_item": {"sender_item_id": "request",
+        "receiver": "sb-test@personal.example.com", "amount": {"currency": "USD", "value": "40.00"}}}]})
+    with pytest.raises(IntegrationError, match="amount does not match"):
+        gateway.payout_status("BATCH-1", "request", expected_amount="45.00")
+    with pytest.raises(IntegrationError, match="recipient does not match"):
+        gateway.payout_status("BATCH-1", "request", expected_amount="40.00", expected_receiver="other@example.com")
 
 
 def test_model_quota_error_is_reported_safely(monkeypatch):

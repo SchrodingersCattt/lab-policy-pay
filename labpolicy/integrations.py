@@ -117,7 +117,7 @@ class PayPalSandbox:
             raise IntegrationError("PayPal returned an unexpected sandbox approval URL.")
         return {"id": order["id"], "approval_url": approval}
 
-    def capture_order(self, order_id: str, reference: str, amount: str) -> dict:
+    def capture_order(self, order_id: str, reference: str, amount: str, *, may_capture: bool = True) -> dict:
         if not re.fullmatch(r"[A-Za-z0-9-]{1,64}", order_id):
             raise IntegrationError("Invalid PayPal order identifier.")
         expected = money(amount)
@@ -131,6 +131,8 @@ class PayPalSandbox:
         if order.get("status") != "COMPLETED":
             if order.get("status") != "APPROVED":
                 raise IntegrationError("The buyer has not approved this PayPal order.")
+            if not may_capture:
+                raise IntegrationError("The current policy or budget period no longer permits capture.")
             order = self._request("POST", f"/v2/checkout/orders/{order_id}/capture", body={}, request_id=f"capture-{reference}")
         units = order.get("purchase_units") or []
         captures = (units[0].get("payments") or {}).get("captures", []) if len(units) == 1 else []
@@ -138,7 +140,7 @@ class PayPalSandbox:
             raise IntegrationError("PayPal has not completed the capture.")
         capture = captures[0]
         received = capture.get("amount") or {}
-        if capture.get("status") != "COMPLETED" or received.get("currency_code") != "USD" or money(received.get("value")) != expected:
+        if not capture.get("id") or capture.get("status") != "COMPLETED" or received.get("currency_code") != "USD" or money(received.get("value")) != expected:
             raise IntegrationError("The captured payment could not be verified.")
         return {"order_id": order_id, "capture_id": capture.get("id"), "status": "COMPLETED"}
 
@@ -156,11 +158,19 @@ class PayPalSandbox:
             raise IntegrationError("PayPal did not return a payout batch ID.")
         return {"batch_id": header["payout_batch_id"], "status": header.get("batch_status", "PENDING")}
 
-    def payout_status(self, batch_id: str, reference: str) -> dict:
+    def payout_status(self, batch_id: str, reference: str, *, expected_amount: str | None = None,
+                      expected_receiver: str | None = None) -> dict:
         if not re.fullmatch(r"[A-Za-z0-9-]{1,64}", batch_id):
             raise IntegrationError("Invalid payout batch identifier.")
         result = self._request("GET", f"/v1/payments/payouts/{batch_id}")
         items = result.get("items") or []
         item = next((x for x in items if (x.get("payout_item") or {}).get("sender_item_id") == reference), None)
+        if item:
+            details = item.get("payout_item") or {}
+            amount = details.get("amount") or {}
+            if expected_amount is not None and (amount.get("currency") != "USD" or money(amount.get("value")) != money(expected_amount)):
+                raise IntegrationError("The PayPal payout item amount does not match the approved request.")
+            if expected_receiver is not None and str(details.get("receiver", "")).casefold() != expected_receiver.casefold():
+                raise IntegrationError("The PayPal payout recipient does not match the approved request.")
         return {"batch_id": batch_id, "batch_status": (result.get("batch_header") or {}).get("batch_status", "PENDING"),
                 "item_status": item.get("transaction_status") if item else None}
