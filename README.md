@@ -53,6 +53,18 @@ synthetic. This is a single-user local demo, not a production finance system.
 ```
 
 The tests mock external services and cannot replace a real sandbox end-to-end
-test. Do not commit `.env`, sandbox secrets, personal financial records or
-model API keys. Free judge access to the model and sandbox must be arranged
-before submission.
+test. During development, a Sandbox reimbursement was submitted through the
+application after policy confirmation and human approval, and its payout item
+reached `SUCCESS`. Payouts access varies by account and must be enabled in the
+Sandbox app.
+
+For an explicit test with virtual funds, set `PAYPAL_SANDBOX_BUYER_EMAIL` in
+`.env` to a fictional PayPal example-domain Sandbox account and run:
+
+```bash
+.venv/bin/python scripts/smoke_sandbox_payout.py --execute
+```
+
+This sends USD 0.10 in Sandbox funds. Do not commit `.env`, sandbox secrets,
+personal financial records or model API keys. Free judge access to the model
+and sandbox must be arranged before submission.
