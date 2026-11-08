@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+import requests
 from labpolicy import app as lab
-from labpolicy.integrations import IntegrationError
+from labpolicy.integrations import IntegrationError, model_json
 
 
 @pytest.fixture
@@ -110,3 +111,20 @@ def test_payout_failure_does_not_create_a_fake_success(client, monkeypatch):
     response = client.post(f"/api/expenses/{row['id']}/pay")
     assert response.status_code == 503
     assert client.get("/api/dashboard").get_json()["expenses"][0]["status"] == "approved"
+
+
+def test_model_quota_error_is_reported_safely(monkeypatch):
+    monkeypatch.setenv("AI_BASE_URL", "https://model.example/v1")
+    monkeypatch.setenv("AI_API_KEY", "secret-for-test")
+    monkeypatch.setenv("AI_MODEL", "demo")
+
+    class Response:
+        status_code = 402
+
+        def raise_for_status(self):
+            raise requests.HTTPError(response=self)
+
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+    with pytest.raises(IntegrationError, match="HTTP 402") as exc:
+        model_json("system", "prompt")
+    assert "secret-for-test" not in str(exc.value)
