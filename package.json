@@ -1,0 +1,9 @@
+{
+  "name": "lab-policy-pay-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Optional AG Grid Community dashboard for Lab Policy Pay",
+  "dependencies": {
+    "ag-grid-community": "35.0.1"
+  }
+}

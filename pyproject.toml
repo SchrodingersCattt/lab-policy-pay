@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab-policy-pay"
+version = "0.1.0"
+description = "Human-reviewed lab expense policies with AI and PayPal Sandbox"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = ["Flask>=3.0,<4", "python-dotenv>=1.0,<2", "requests>=2.32,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+lab-policy-pay = "labpolicy.app:main"
+
+[tool.setuptools.packages.find]
+include = ["labpolicy*"]
+
+[tool.setuptools.package-data]
+labpolicy = ["templates/*.html", "static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

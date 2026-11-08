@@ -1,0 +1,9 @@
+Research teams receive spending rules in emails and documents, but decisions happen later, when a purchase or reimbursement is requested.
+
+Ledger Lab connects those two moments. Paste a finance notice and the AI extracts the monthly budget, approval threshold and single-expense limit, with the original words beside each value.
+
+A person reviews and confirms the policy. Now an expense request can be checked against the confirmed limits. The decision is visible, and a person confirms approval before payment.
+
+For a sample supplier purchase, PayPal Sandbox handles checkout. For an employee reimbursement, the application can submit a sandbox Payout when the account has that feature enabled. A pending or unclaimed payout is not shown as paid.
+
+The request ledger brings policy, human decisions and payment status together. Ledger Lab helps a research team move from a written rule to a transparent action.
