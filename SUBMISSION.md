@@ -53,4 +53,4 @@ PayPal Sandbox Orders, PayPal Sandbox Payouts, Bohrium, DeepSeek.
 
 **Repository:** https://github.com/SchrodingersCattt/lab-policy-pay
 
-**Video:** Pending YouTube upload.
+**Video:** https://youtu.be/Ny_yaSOiRCY

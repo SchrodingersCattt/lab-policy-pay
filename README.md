@@ -1,5 +1,7 @@
 # Ledger Lab
 
+[Watch the 78-second demo](https://youtu.be/Ny_yaSOiRCY)
+
 Ledger Lab helps a research team turn written spending rules and receipt text
 into reviewable expense requests. AI proposes policy limits and receipt fields
 with quotations from their source. A person checks the text and confirms the
