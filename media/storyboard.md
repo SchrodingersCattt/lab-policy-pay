@@ -1,17 +1,13 @@
 # Ledger Lab — demo storyboard
 
-The English demo is approximately 65 seconds and uses genuine application
-footage with synthetic notice and receipt text. It contains AI-generated
-narration and identifies the user-authorized automation and sandbox funds on
-screen. Waiting for PayPal is shortened in the edit and labeled as such.
+The English demo runs approximately 78 seconds. It shows one continuous
+recording of the application with synthetic policy and receipt documents.
 
-1. Extract the three policy amounts and show quotations from the notice.
-2. Confirm the policy, then show an over-limit request being blocked.
-3. Extract a $0.10 receipt with source quotations and review the request.
-4. Confirm the request, submit a real PayPal Sandbox Payout, and refresh until
-   the matching item reports `SUCCESS`.
-5. Show the AG Grid Community ledger and its search control.
+1. Show the finance notice marked **AI DEMO**, download and upload it.
+2. Read the image with local OCR and extract three evidenced rules into a table.
+3. Confirm the policy and show the $201 request exceeding rule 03 by $1.
+4. Upload a receipt, extract its fields and approve the eligible reimbursement.
+5. Submit a real PayPal Sandbox Payout and refresh until the matching item
+   reports `SUCCESS`; show the searchable AG Grid ledger.
 
-The separate Orders path creates a real sandbox checkout, but buyer approval
-and capture were not performed during this recording. The final video does not
-show credentials or claim a live-money transaction.
+The narration is synthesized; no live funds are used.

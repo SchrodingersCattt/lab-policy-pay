@@ -6,6 +6,13 @@ with quotations from their source. A person checks the text and confirms the
 policy and each payment request. The app checks the confirmed single-expense
 and monthly limits before creating a PayPal Sandbox order or reimbursement.
 
+Upload a PDF, image, or text file for a policy or receipt. PDF text is extracted
+with PDF.js; scanned pages and images use the open-source Tesseract.js OCR engine
+in the browser, with local English and Simplified Chinese language data. The
+example policy can be downloaded as a marked AI demo notice and uploaded again.
+Extracted policy rules appear in a table with their source quotations, and a
+blocked request names the rule, limit and amount exceeded.
+
 The activity ledger uses **AG Grid Community** for filtering, sorting, selecting
 requests, and CSV export. A simple list is provided if the grid is unavailable.
 PayPal Orders demonstrates checkout with the configured sandbox merchant;
@@ -16,7 +23,7 @@ Sandbox API only; no live payment endpoint is supported.
 
 ## Run and test
 
-Requirements: Python 3.11, [uv](https://docs.astral.sh/uv/), Node.js 20+ and
+Requirements: Python 3.11, [uv](https://docs.astral.sh/uv/), Node.js 20.16+ and
 npm. For real AI and PayPal calls, configure an OpenAI-compatible model endpoint
 and a PayPal developer **Sandbox** app. The recording uses `deepseek-v4.1-flash`
 through Bohrium's OpenAI-compatible API, PayPal Orders v2 and Payouts v1, and
@@ -48,9 +55,10 @@ Edit `.env` locally:
 .venv/bin/python -m labpolicy.app
 ```
 
-Open <http://127.0.0.1:50002>. Click **Extract policy with AI**, compare each
-value with its quotation and activate the policy. In **New request**, optionally
-open **Extract from a receipt**, paste text, extract and review the proposed
+Open <http://127.0.0.1:50002>. Upload a policy notice, or download and upload the
+example image. Click **Extract policy with AI**, compare each rule with its
+quotation in the table, and activate the policy. In **New request**, optionally
+open **Extract from a receipt**, upload or paste text, extract and review the proposed
 fields. Select a payment flow and submit the request. Select it in the ledger,
 confirm approval, then initiate the sandbox payment. For a reimbursement,
 refresh the payout status to see whether the item has actually succeeded.
@@ -68,8 +76,8 @@ app, not an arbitrary supplier. Sandbox Payouts availability depends on the app.
 ## Boundaries and recovery
 
 This is a single-user local hackathon prototype, not a production accounting
-system: it has no authentication, roles, multi-process locking, secure audit
-log, OCR, or general document upload. Keep it bound to localhost and use only
+system: it has no authentication, roles, multi-process locking, or secure audit
+log. Keep it bound to localhost and use only
 fictional data and sandbox accounts. An exact quotation is a review aid, not a
 guarantee that a model interpreted a document correctly. Unsupported or edited
 values are not represented as supported by the original quotation.
@@ -92,4 +100,4 @@ repository or an unverified submission field.
 ## License
 
 MIT; see [LICENSE](LICENSE). AG Grid Community is a separate MIT-licensed
-dependency installed by npm.
+dependency. Tesseract.js and PDF.js are Apache-2.0 dependencies installed by npm.

@@ -1,9 +1,13 @@
-Research teams receive spending rules in emails and documents, but decisions happen later, when a purchase or reimbursement is requested.
+Research teams receive spending rules in documents, while their receipts arrive separately. Ledger Lab connects those two moments.
 
-Ledger Lab connects those two moments. Paste a finance notice and the AI extracts the monthly budget, approval threshold and single-expense limit, with the original words beside each value.
+Upload a policy notice. Local OCR reads the document and prepares its text for the AI assistant.
 
-A person reviews and confirms the policy. Now an expense request can be checked against the confirmed limits. The decision is visible, and a person confirms approval before payment.
+The assistant extracts the monthly budget, approval threshold and single expense limit, with the original evidence in a reviewable table.
 
-For a sample supplier purchase, PayPal Sandbox handles checkout. For an employee reimbursement, the application can submit a sandbox Payout when the account has that feature enabled. A pending or unclaimed payout is not shown as paid.
+A request for two hundred and one dollars is blocked. Rule three sets the limit at two hundred dollars, so this request is one dollar over.
 
-The request ledger brings policy, human decisions and payment status together. Ledger Lab helps a research team move from a written rule to a transparent action.
+Now upload a receipt. OCR and AI extract the amount and description, and the request is checked against the confirmed rules.
+
+After approval, PayPal Sandbox Payouts sends the reimbursement. Ledger Lab checks the matching payout item before marking it paid.
+
+The searchable AG Grid ledger keeps the evidence, policy decision and payment status together.

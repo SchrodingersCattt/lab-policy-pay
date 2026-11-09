@@ -1,22 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ledger Lab — turn policy into practice</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="/vendor/ag-grid-community/dist/ag-grid-community.min.js" defer></script>
+  <script src="/vendor/ocr/tesseract/tesseract.min.js" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body>
 <div class="app-shell">
-  <aside class="sidebar"><a class="brand" href="/"><span class="brand-mark">L<span>.</span></span><span>ledger<b>lab</b><small>RESEARCH FINANCE</small></span></a>
-    <div class="nav-label">WORKSPACE</div><nav><a class="nav-active" href="#overview"><span>▦</span> Overview <b>01</b></a><a href="#policy"><span>▤</span> Policy desk</a><a href="#requests"><span>↗</span> Requests</a><a href="#activity"><span>◷</span> Activity</a></nav>
-    <div class="side-bottom"><div class="sandbox-dot"></div><div><strong>Sandbox workspace</strong><small>Simulated funds only</small></div></div>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">L<span>.</span></span><span>ledger<b>lab</b><small>RESEARCH FINANCE</small></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <nav><a class="nav-active" href="#overview"><span>▦</span> Overview</a><a href="#policy"><span>▤</span> Policy desk</a><a href="#requests"><span>↗</span> Requests</a><a href="#activity"><span>◷</span> Activity</a></nav>
+    <div class="side-bottom"><span class="sandbox-dot"></span><strong>PayPal Sandbox</strong></div>
   </aside>
   <main class="main" id="overview">
     <header><div class="breadcrumbs">WORKSPACE <span>/</span> OVERVIEW</div><div class="header-right"><span class="live-dot"></span> PAYPAL SANDBOX <span class="avatar">PI</span></div></header>
     <div class="content">
-      <section class="page-title"><div><div class="eyebrow">YOUR LAB, IN BALANCE <span>✳</span></div><h1>Good research needs<br><em>clear decisions.</em></h1><p>Turn a funding notice into an understandable policy, then review and pay lab expenses with confidence.</p></div><div class="date-card"><span>POLICY CONTROL</span><strong id="policy-badge">Not active</strong><small>Human review is always required</small></div></section>
+      <section class="page-title"><div><div class="eyebrow">YOUR LAB, IN BALANCE <span>✳</span></div><h1>Good research needs<br><em>clear decisions.</em></h1><p>Bring policy, expense evidence and payment decisions together.</p></div><div class="date-card"><span>POLICY STATUS</span><strong id="policy-badge">Not active</strong></div></section>
       <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
       <section class="metrics" aria-label="Budget summary">
         <article class="metric"><div class="metric-label">MONTHLY BUDGET <span>↗</span></div><strong id="metric-budget">—</strong><small>Confirmed policy limit</small></article>
@@ -25,44 +29,84 @@
       </section>
 
       <div class="two-col">
-        <section class="card policy-card" id="policy"><div class="card-heading"><div><span class="index">01</span><h2>Policy desk</h2></div><span class="tag">AI ASSISTED</span></div><p class="card-intro">Paste a notice. Review the extracted amounts and their source before anything takes effect.</p>
-          <label for="policy-text" class="label">FINANCE NOTICE <span>EXAMPLE · EDITABLE</span></label>
-          <textarea id="policy-text" rows="5">For the research lab, the total monthly expense budget is $500. Any single request above $75 requires principal investigator approval. A single expense must never exceed $200.</textarea>
+        <section class="card policy-card" id="policy">
+          <div class="card-heading"><div><span class="index">01</span><h2>Policy desk</h2></div><span class="tag">AI ASSISTED</span></div>
+          <p class="card-intro">Upload a notice or use the example to turn written policy into clear rules.</p>
+          <div class="document-toolbar">
+            <button id="upload-policy" class="upload-button" type="button">↑ Upload policy</button><input id="policy-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" hidden>
+            <button id="download-sample" class="text-button" type="button">Download example ↓</button>
+            <button id="reset-sample" class="text-button" type="button" hidden>Use example</button>
+          </div>
+          <article id="example-document" class="official-document" aria-label="AI demo finance policy notice">
+            <div class="document-head"><div><strong>INSTITUTE FOR RESEARCH</strong><span>Office of Research Finance</span></div><span class="demo-stamp">AI DEMO</span></div>
+            <div class="document-line"></div>
+            <div class="document-meta"><span>FINANCE POLICY NOTICE</span><span>RF-2026-11</span></div>
+            <h3>Research Expense Policy</h3>
+            <p><b>To:</b> Principal Investigators and Research Staff<br><b>Date:</b> 1 November 2026</p>
+            <p>Effective immediately, the monthly expense budget for each research lab is <b>$500</b>.</p>
+            <p>Any single request above <b>$75</b> requires principal investigator approval.</p>
+            <p>A single expense must never exceed <b>$200</b>.</p>
+            <div class="document-signature">Office of Research Finance</div>
+          </article>
+          <div id="uploaded-document" class="uploaded-document" hidden><span class="document-icon">▤</span><div><strong id="uploaded-filename"></strong><span id="uploaded-method"></span></div></div>
+          <div id="uploaded-preview-wrap" class="uploaded-preview" hidden><img id="uploaded-preview" alt="Uploaded policy document preview"></div>
+          <details class="source-details" id="policy-source-details"><summary>Document text</summary>
+            <label for="policy-text" class="label">NOTICE TEXT</label>
+            <textarea id="policy-text" rows="7">INSTITUTE FOR RESEARCH
+Office of Research Finance
+FINANCE POLICY NOTICE RF-2026-11
+Research Expense Policy
+To: Principal Investigators and Research Staff
+Date: 1 November 2026
+
+Effective immediately, the monthly expense budget for each research lab is $500.
+Any single request above $75 requires principal investigator approval.
+A single expense must never exceed $200.
+
+Office of Research Finance</textarea>
+          </details>
+          <p id="policy-upload-status" class="inline-note" aria-live="polite" hidden></p>
           <button id="parse-policy" class="primary" type="button"><span>Extract policy with AI</span><span>✳</span></button>
-          <div id="policy-review" hidden><div class="rule-divider"><span>02 / REVIEW EXTRACTED RULES</span><span>HUMAN CONFIRMATION</span></div>
-            <div class="rule"><label for="budget">Monthly budget <small>USD</small></label><input id="budget" type="number" min="0.01" step="0.01"><p id="budget-evidence"></p></div>
-            <div class="rule"><label for="approval_threshold">Approval threshold <small>USD</small></label><input id="approval_threshold" type="number" min="0.01" step="0.01"><p id="approval_threshold-evidence"></p></div>
-            <div class="rule"><label for="max_single">Single-expense limit <small>USD</small></label><input id="max_single" type="number" min="0.01" step="0.01"><p id="max_single-evidence"></p></div>
-            <p class="human-note">✳ Check every amount against the notice. Missing or unsupported values must be entered by a person.</p>
+          <div id="policy-review" class="policy-review" hidden>
+            <div class="rule-heading"><div><h3>Policy rules</h3><span id="rules-status">READY TO REVIEW</span></div><button id="edit-policy" class="text-button" type="button" hidden>Edit rules</button></div>
+            <div class="table-scroll"><table class="rules-table"><thead><tr><th scope="col">RULE</th><th scope="col">LIMIT · USD</th><th scope="col">SOURCE IN NOTICE</th></tr></thead><tbody>
+              <tr id="rule-budget"><th scope="row"><span>01</span> Monthly budget</th><td><label class="sr-only" for="budget">Monthly budget</label><input id="budget" type="number" min="0.01" step="0.01"></td><td id="budget-evidence"></td></tr>
+              <tr id="rule-approval_threshold"><th scope="row"><span>02</span> Approval threshold</th><td><label class="sr-only" for="approval_threshold">Approval threshold</label><input id="approval_threshold" type="number" min="0.01" step="0.01"></td><td id="approval_threshold-evidence"></td></tr>
+              <tr id="rule-max_single"><th scope="row"><span>03</span> Single-expense limit</th><td><label class="sr-only" for="max_single">Single-expense limit</label><input id="max_single" type="number" min="0.01" step="0.01"></td><td id="max_single-evidence"></td></tr>
+            </tbody></table></div>
             <button id="confirm-policy" class="secondary" type="button">Confirm &amp; activate policy <span>↗</span></button>
           </div>
-          <div id="active-policy" class="active-policy" hidden><span class="live-dot"></span><span>Policy confirmed by a person</span><button id="edit-policy" type="button">Review again</button></div>
         </section>
 
-        <section class="card request-card" id="requests"><div class="card-heading"><div><span class="index">02</span><h2>New request</h2></div><span class="tag">HUMAN IN CONTROL</span></div><p class="card-intro">Create a request to see how the confirmed policy applies before any money moves.</p>
+        <section class="card request-card" id="requests">
+          <div class="card-heading"><div><span class="index">02</span><h2>New request</h2></div><span class="tag">PAYMENTS</span></div>
+          <p class="card-intro">Check an expense against the active rules before payment.</p>
           <form id="expense-form"><label class="label" for="kind">PAYMENT FLOW</label><select id="kind" required><option value="purchase">Purchase from sample supplier</option><option value="reimbursement">Employee reimbursement</option></select>
-            <details class="receipt-box" id="receipt-box"><summary>Extract from a receipt <span>OPTIONAL · AI ASSISTED</span></summary>
-              <label class="label" for="receipt-text">PASTE RECEIPT TEXT <span>SYNTHETIC DATA ONLY</span></label>
-              <textarea id="receipt-text" rows="3" placeholder="Paste receipt text here"></textarea>
+            <details class="receipt-box" id="receipt-box"><summary>Extract from a receipt <span>AI ASSISTED</span></summary>
+              <div class="document-toolbar"><button id="upload-receipt" class="upload-button" type="button">↑ Upload receipt</button><input id="receipt-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" hidden></div>
+              <p id="receipt-upload-status" class="inline-note" aria-live="polite" hidden></p>
+              <label class="label" for="receipt-text">RECEIPT TEXT</label>
+              <textarea id="receipt-text" rows="3" placeholder="Upload a receipt or paste its text"></textarea>
               <button id="parse-receipt" class="secondary" type="button"><span>Extract receipt with AI</span><span>✳</span></button>
-              <p id="receipt-evidence" class="inline-note">Review the amount and description against the original receipt before submitting.</p>
+              <p id="receipt-evidence" class="inline-note"></p>
             </details>
             <div class="field-row"><div><label class="label" for="project">PROJECT</label><input id="project" placeholder="e.g. Crystal discovery" maxlength="80" required></div><div><label class="label" for="amount">AMOUNT <span>USD</span></label><input id="amount" type="number" min="0.01" step="0.01" placeholder="45.00" required></div></div>
             <label class="label" for="description">WHAT IS THIS FOR?</label><input id="description" placeholder="e.g. Materials data service" maxlength="300" required>
-            <div id="recipient-wrap" hidden><label class="checkbox-line"><input id="use-configured-recipient" type="checkbox"> Use the configured sandbox employee</label><label class="label" for="recipient">SANDBOX EMPLOYEE EMAIL</label><input id="recipient" type="email" placeholder="Sandbox account email"><p class="inline-note">Use a PayPal sandbox personal account, not a real recipient.</p></div>
+            <div id="recipient-wrap" hidden><label class="checkbox-line"><input id="use-configured-recipient" type="checkbox"> Use configured sandbox employee</label><label class="label" for="recipient">SANDBOX EMPLOYEE EMAIL</label><input id="recipient" type="email" placeholder="Sandbox account email"></div>
             <button class="primary" type="submit"><span>Check against policy</span><span>↗</span></button>
           </form>
-          <div class="info-box"><span>↳</span><p><strong>Two real sandbox flows.</strong> Purchases use a simulated supplier checkout. Reimbursements use Payouts when enabled on your sandbox app.</p></div>
+          <div class="info-box"><span>↳</span><p><strong>Purchase or reimburse.</strong> Review the decision and continue with PayPal Sandbox.</p></div>
         </section>
       </div>
 
-      <section class="card activity-card" id="activity"><div class="card-heading"><div><span class="index">03</span><h2>Request activity</h2></div><span class="tag" id="grid-label">REQUEST LEDGER</span></div><p class="card-intro">Select a request to inspect its policy decision, approve it, or check the payment status.</p>
+      <section class="card activity-card" id="activity"><div class="card-heading"><div><span class="index">03</span><h2>Request activity</h2></div><span class="tag" id="grid-label">REQUEST LEDGER</span></div><p class="card-intro">Select a request to see the rule decision and payment status.</p>
         <div id="grid-tools" class="grid-tools" hidden><label for="grid-search">Search requests</label><input id="grid-search" placeholder="Filter by project, request or status"><button id="grid-export" type="button">Export CSV</button></div>
         <div id="expense-grid" class="expense-grid"></div><div id="fallback-table" hidden></div><div class="empty-ledger" id="empty-ledger">No requests yet. Confirm a policy to begin.</div>
         <div id="selected" class="selected" hidden><div class="selected-top"><div><span class="label">SELECTED REQUEST</span><h3 id="selected-title"></h3></div><span class="state" id="selected-state"></span></div><p id="selected-decision"></p><p id="selected-source" class="source-summary" hidden></p><div class="selected-actions"><button id="approve" type="button" hidden>Confirm approval</button><button id="pay" type="button" hidden>Continue to sandbox payment</button><button id="refresh" type="button" hidden>Refresh payout status</button><button id="cancel" type="button" hidden>Cancel request</button></div></div>
       </section>
-      <footer><span>LEDGER LAB <b>·</b> HUMAN JUDGMENT, CLEARER CONTEXT</span><span>PAYPAL SANDBOX / AI / AG GRID COMMUNITY</span></footer>
+      <footer><span>LEDGER LAB <b>·</b> RESEARCH FINANCE</span><span>AI / PAYPAL / AG GRID</span></footer>
     </div>
   </main>
 </div>
-</body></html>
+</body>
+</html>

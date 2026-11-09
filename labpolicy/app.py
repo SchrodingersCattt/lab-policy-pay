@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, session
 
 from .integrations import IntegrationError, PayPalSandbox, model_json, money
 
@@ -186,13 +186,21 @@ def create_app(data_dir: Path | None = None) -> Flask:
         return bool(conn.execute("SELECT strftime('%Y-%m',?) = strftime('%Y-%m','now')", (row["created_at"],)).fetchone()[0])
 
     def decision_for(policy, amount, committed):
+        violations = []
         if amount > policy["max_single"]:
-            return "blocked", "Above the confirmed single-expense limit."
+            violations.append(f"RULE 03 · Single-expense limit: ${dollars(amount)} exceeds "
+                              f"${dollars(policy['max_single'])} by ${dollars(amount - policy['max_single'])}.")
         if committed + amount > policy["budget"]:
-            return "blocked", "This request would exceed the confirmed monthly budget."
+            total = committed + amount
+            violations.append(f"RULE 01 · Monthly budget: ${dollars(committed)} committed + "
+                              f"${dollars(amount)} requested = ${dollars(total)}; this exceeds "
+                              f"the ${dollars(policy['budget'])} budget by ${dollars(total - policy['budget'])}.")
+        if violations:
+            return "blocked", " ".join(violations)
         if amount > policy["approval_threshold"]:
-            return "review", "Above the threshold: principal investigator approval required."
-        return "review", "Within the confirmed policy; human payment confirmation is still required."
+            return "review", (f"RULE 02 · Approval threshold: ${dollars(amount)} exceeds "
+                              f"${dollars(policy['approval_threshold'])}; principal investigator approval required.")
+        return "review", "All spending limits met. Confirm the request to continue."
 
     def lookup(conn, expense_id):
         if not re.fullmatch(r"[0-9a-f]{32}", expense_id):
@@ -213,6 +221,25 @@ def create_app(data_dir: Path | None = None) -> Flask:
     @app.get("/vendor/ag-grid-community/<path:filename>")
     def ag_grid_vendor(filename):
         return send_from_directory(ROOT / "node_modules" / "ag-grid-community", filename)
+
+    @app.get("/vendor/ocr/<package>/<path:filename>")
+    def ocr_vendor(package, filename):
+        directories = {
+            "tesseract": ROOT / "node_modules" / "tesseract.js" / "dist",
+            "core": ROOT / "node_modules" / "tesseract.js-core",
+            "pdfjs": ROOT / "node_modules" / "pdfjs-dist" / "build",
+        }
+        if package not in directories:
+            abort(404)
+        return send_from_directory(directories[package], filename)
+
+    @app.get("/vendor/tessdata/<filename>")
+    def tessdata(filename):
+        languages = {"eng.traineddata.gz": "eng", "chi_sim.traineddata.gz": "chi_sim"}
+        language = languages.get(filename)
+        if not language:
+            abort(404)
+        return send_from_directory(ROOT / "node_modules" / "@tesseract.js-data" / language / "4.0.0_best_int", filename)
 
     @app.get("/api/dashboard")
     def dashboard():
@@ -326,10 +353,10 @@ def create_app(data_dir: Path | None = None) -> Flask:
                 policy = active_policy(conn)
                 status, decision = decision_for(policy, row["amount"], committed_total(conn))
                 if status == "blocked":
-                    conn.execute("UPDATE expenses SET status=?,decision=? WHERE id=?", (status, decision, expense_id))
+                    conn.execute("UPDATE expenses SET status=?,decision=?,policy_id=? WHERE id=?", (status, decision, policy["id"], expense_id))
                     conn.commit()
                     return jsonify({"error": decision}), 409
-                conn.execute("UPDATE expenses SET status='approved',decision=? WHERE id=?", ("Approved by a person; funds reserved.", expense_id))
+                conn.execute("UPDATE expenses SET status='approved',decision=?,policy_id=? WHERE id=?", ("Approved by a person; funds reserved.", policy["id"], expense_id))
                 conn.commit()
                 return jsonify(expense_public(lookup(conn, expense_id)))
         except (TypeError, ValueError) as exc:
@@ -354,7 +381,7 @@ def create_app(data_dir: Path | None = None) -> Flask:
                 status, decision = decision_for(policy, row["amount"], committed_total(conn) - row["amount"])
                 if status == "blocked":
                     if not retry_payout:
-                        conn.execute("UPDATE expenses SET status='blocked',decision=? WHERE id=?", (decision, expense_id))
+                        conn.execute("UPDATE expenses SET status='blocked',decision=?,policy_id=? WHERE id=?", (decision, policy["id"], expense_id))
                         conn.commit()
                     return jsonify({"error": decision}), 409
                 paypal = PayPalSandbox()

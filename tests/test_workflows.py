@@ -42,19 +42,27 @@ def test_human_confirmation_budget_reservations_and_policy_changes(client):
     confirm(client)
     blocked = expense(client, "201")
     assert blocked["status"] == "blocked"
+    assert "RULE 03" in blocked["decision"]
+    assert all(value in blocked["decision"] for value in ("$201.00", "$200.00", "$1.00"))
     first = expense(client, "200")
     assert client.post(f"/api/expenses/{first['id']}/approve", json={"confirmed": False}).status_code == 400
     assert client.post(f"/api/expenses/{first['id']}/approve", json={"confirmed": True}).get_json()["status"] == "approved"
     second = expense(client, "200")
     assert client.post(f"/api/expenses/{second['id']}/approve", json={"confirmed": True}).status_code == 200
     assert expense(client, "150")["status"] == "blocked"
+    budget_block = expense(client, "110")
+    assert "RULE 01" in budget_block["decision"] and "$10.00" in budget_block["decision"]
     assert client.get("/api/dashboard").get_json()["committed"] == "400.00"
     assert client.post(f"/api/expenses/{second['id']}/cancel").status_code == 200
     assert client.get("/api/dashboard").get_json()["committed"] == "200.00"
     confirm(client, budget="500", maximum="100")
     response = client.post(f"/api/expenses/{first['id']}/pay")
     assert response.status_code == 409
-    assert client.get("/api/dashboard").get_json()["committed"] == "0.00"
+    dashboard = client.get("/api/dashboard").get_json()
+    assert dashboard["committed"] == "0.00"
+    blocked_again = next(row for row in dashboard["expenses"] if row["id"] == first["id"])
+    assert blocked_again["policy_id"] == dashboard["policy"]["id"]
+    assert "RULE 03" in blocked_again["decision"] and "$100.00" in blocked_again["decision"]
 
 
 def test_reimbursement_waits_for_item_success(client, monkeypatch):
